@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sudoku Pro - Newspaper Style</title>
+
+<style>
+body {
+  font-family: 'Times New Roman', Times, serif;
+  text-align: center;
+  background: #f5f4f0;
+  color: #222;
+  padding: 20px;
+}
+
+/* Container */
+#container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Board */
+#board {
+  display: grid;
+  grid-template-columns: repeat(9, 45px);
+  gap: 2px;
+  margin: 20px auto;
+  background: #ddd;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+/* Cells */
+.cell {
+  width: 45px;
+  height: 45px;
+  text-align: center;
+  font-size: 18px;
+  border: 1px solid #aaa;
+  background: #fafafa;
+  color: #222;
+  transition: all 0.2s ease;
+}
+
+.cell:focus {
+  outline: none;
+  background: #e2e2c8;
+  box-shadow: 0 0 3px #aaa;
+}
+
+.fixed {
+  background: #e0e0d1;
+  font-weight: bold;
+}
+
+.correct {
+  color: #007700;
+  font-weight: bold;
+}
+
+.wrong {
+  color: #bb0000;
+  font-weight: bold;
+}
+
+.selected {
+  background: #d6d6b5 !important;
+}
+
+/* 3x3 borders */
+.cell[data-col="0"], .cell[data-col="3"], .cell[data-col="6"] { border-left: 2px solid #222; }
+.cell[data-row="0"], .cell[data-row="3"], .cell[data-row="6"] { border-top: 2px solid #222; }
+.cell[data-col="8"] { border-right: 2px solid #222; }
+.cell[data-row="8"] { border-bottom: 2px solid #222; }
+
+/* Buttons */
+button {
+  margin: 6px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #f5f5f5;
+  color: #222;
+  cursor: pointer;
+  font-family: 'Times New Roman', Times, serif;
+  transition: 0.2s;
+}
+button:hover {
+  background: #e0e0d1;
+  transform: scale(1.05);
+}
+
+/* Keypad */
+#keypad {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  width: 90%;
+  max-width: 400px;
+  gap: 4px;
+}
+.key {
+  background: #fafafa;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #aaa;
+  cursor: pointer;
+  font-family: 'Times New Roman', Times, serif;
+}
+.key:hover { background: #e2e2c8; transform: scale(1.05); }
+.key-number { color: #222; font-weight: bold; font-size: 18px; }
+.key-count { font-size: 10px; color: #555; }
+
+/* Popup */
+#popup {
+  position: fixed;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fffae5;
+  color: #333;
+  padding: 15px 40px;
+  font-size: 22px;
+  font-weight: bold;
+  border-radius: 8px;
+  border: 1px solid #aaa;
+  opacity: 0;
+  transition: all 0.6s ease;
+}
+#popup.show { top: 40px; opacity: 1; }
+
+/* Timer & Mistakes */
+#timer, #mistakes { font-size: 16px; margin: 5px; }
+
+</style>
+</head>
+
+<body>
+
+<div id="container">
+<h2>Sudoku</h2>
+
+<button onclick="toggleMode()">📰 Toggle Paper Mode</button>
+
+<p id="timer">Time: 0s</p>
+<p id="mistakes">Mistakes: 0</p>
+
+<div id="board"></div>
+
+<div>
+<button onclick="newGame('easy')">Easy</button>
+<button onclick="newGame('hard')">Hard</button>
+<button onclick="solveSudoku()">Solve</button>
+<button onclick="undo()">Undo</button>
+<button onclick="giveHint()">Hint</button>
+</div>
+
+<div id="keypad"></div>
+</div>
+
+<div id="popup">🎉 FINISHED!</div>
+
+<script>
+// Game Logic
+let solution=[], history=[], selectedCell=null, mistakes=0, startTime, timer;
+
+function isValid(b,r,c,n){
+  for(let i=0;i<9;i++) if(b[r][i]==n||b[i][c]==n) return false;
+  let sr=Math.floor(r/3)*3, sc=Math.floor(c/3)*3;
+  for(let i=0;i<3;i++) for(let j=0;j<3;j++) if(b[sr+i][sc+j]==n) return false;
+  return true;
+}
+
+function solve(b){
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      if(b[r][c]==0){
+        for(let n=1;n<=9;n++){
+          if(isValid(b,r,c,n)){
+            b[r][c]=n;
+            if(solve(b)) return true;
+            b[r][c]=0;
+          }
+        }
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function generate(level){
+  let full=Array.from({length:9},()=>Array(9).fill(0));
+  function fill(){
+    for(let i=0;i<9;i++){
+      for(let j=0;j<9;j++){
+        if(full[i][j]==0){
+          let nums=[1,2,3,4,5,6,7,8,9].sort(()=>Math.random()-0.5);
+          for(let n of nums){
+            if(isValid(full,i,j,n)){
+              full[i][j]=n;
+              if(fill()) return true;
+              full[i][j]=0;
+            }
+          }
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  fill();
+  solution=full.map(r=>r.slice());
+  let puzzle=full.map(r=>r.slice());
+  let remove=level==="easy"?35:55;
+  while(remove>0){
+    let r=Math.floor(Math.random()*9);
+    let c=Math.floor(Math.random()*9);
+    if(puzzle[r][c]!=0){
+      let backup=puzzle[r][c]; puzzle[r][c]=0;
+      let copy=puzzle.map(r=>r.slice());
+      if(!solve(copy)){ puzzle[r][c]=backup; } else remove--;
+    }
+  }
+  return puzzle;
+}
+
+// UI
+function createBoard(){
+  const board=document.getElementById("board");
+  board.innerHTML="";
+  for(let i=0;i<9;i++){
+    for(let j=0;j<9;j++){
+      let cell=document.createElement("input");
+      cell.className="cell";
+      cell.dataset.row=i; cell.dataset.col=j;
+      cell.onclick=()=>{ document.querySelectorAll(".cell").forEach(c=>c.classList.remove("selected")); cell.classList.add("selected"); selectedCell=cell; };
+      cell.oninput=()=>{
+        let val=parseInt(cell.value);
+        history.push(getBoard());
+        cell.classList.remove("wrong","correct");
+        if(!val){ updateKeypadCounts(); return; }
+        if(val===solution[i][j]) cell.classList.add("correct");
+        else { cell.classList.add("wrong"); mistakes++; document.getElementById("mistakes").innerText="Mistakes: "+mistakes; }
+        updateKeypadCounts();
+        if(checkComplete()) stopTimer();
+      };
+      board.appendChild(cell);
+    }
+  }
+}
+
+function setBoard(b){
+  const cells=document.querySelectorAll(".cell");
+  for(let i=0;i<9;i++){
+    for(let j=0;j<9;j++){
+      let cell=cells[i*9+j];
+      if(b[i][j]!=0){ cell.value=b[i][j]; cell.disabled=true; cell.classList.add("fixed"); }
+      else { cell.value=""; cell.disabled=false; cell.classList.remove("fixed"); }
+    }
+  }
+  updateKeypadCounts();
+}
+
+function getBoard(){
+  const cells=document.querySelectorAll(".cell");
+  let b=[]; for(let i=0;i<9;i++){ b.push([]); for(let j=0;j<9;j++){ let v=cells[i*9+j].value; b[i].push(v?parseInt(v):0); } }
+  return b;
+}
+
+function createKeypad(){
+  const keypad=document.getElementById("keypad"); keypad.innerHTML="";
+  for(let i=1;i<=9;i++){
+    let key=document.createElement("div"); key.className="key";
+    key.innerHTML=`<div class="key-number">${i}</div><div class="key-count" id="count-${i}">9 left</div>`;
+    key.onclick=()=>{ if(selectedCell && !selectedCell.disabled){ selectedCell.value=i; selectedCell.dispatchEvent(new Event("input")); } };
+    keypad.appendChild(key);
+  }
+}
+
+function updateKeypadCounts(){
+  let count=Array(10).fill(0);
+  document.querySelectorAll(".cell").forEach(c=>{ let v=parseInt(c.value); if(v) count[v]++; });
+  for(let i=1;i<=9;i++){ document.getElementById(`count-${i}`).innerText=(9-count[i])+" left"; }
+}
+
+function newGame(level){ createBoard(); let puzzle=generate(level); setBoard(puzzle); createKeypad(); mistakes=0; document.getElementById("mistakes").innerText="Mistakes: 0"; startTimer(); }
+
+function solveSudoku(){ setBoard(solution); clearInterval(timer); }
+
+function undo(){ if(history.length>0){ setBoard(history.pop()); updateKeypadCounts(); } }
+
+function giveHint(){
+  const cells=document.querySelectorAll(".cell");
+  for(let i=0;i<81;i++){ if(!cells[i].value){ let r=Math.floor(i/9),c=i%9; cells[i].value=solution[r][c]; updateKeypadCounts(); break; } }
+}
+
+function startTimer(){ startTime=Date.now(); clearInterval(timer); timer=setInterval(()=>{ let t=Math.floor((Date.now()-startTime)/1000); document.getElementById("timer").innerText="Time: "+t+"s"; },1000); }
+
+function stopTimer(){
+  clearInterval(timer);
+  let sec=Math.floor((Date.now()-startTime)/1000); let m=Math.floor(sec/60); let s=sec%60;
+  document.getElementById("timer").innerText="Completed in "+m+" min "+s+" sec 🎉";
+  showPopup();
+}
+
+function showPopup(){ const popup=document.getElementById("popup"); popup.classList.add("show"); setTimeout(()=>{ popup.classList.remove("show"); },4000); }
+
+function toggleMode(){ document.body.classList.toggle("dark"); }
+
+function checkComplete(){ return JSON.stringify(getBoard())===JSON.stringify(solution); }
+
+// Init
+createBoard(); createKeypad(); newGame('easy');
+</script>
+
+</body>
+</html>
